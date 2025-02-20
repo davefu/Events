@@ -110,34 +110,43 @@ class ExtensionTest extends \Tester\TestCase
 	{
 		$container = $this->createContainer('autowire');
 
-		$app = $container->getService('application');
 		/** @var \Nette\Application\Application $app */
-		Assert::true($app->onStartup instanceof Event);
-		Assert::same(Application::class . '::onStartup', $app->onStartup->getName());
+		$app = $container->getService('application');
 
-		Assert::true($app->onRequest instanceof Event);
-		Assert::same(Application::class . '::onRequest', $app->onRequest->getName());
+		$onStartupEvent = $this->getEventFromListenersProperty($app->onStartup);
+		Assert::true($onStartupEvent instanceof Event);
+		Assert::same(Application::class . '::onStartup', $onStartupEvent->getName());
 
-		Assert::true($app->onResponse instanceof Event);
-		Assert::same(Application::class . '::onResponse', $app->onResponse->getName());
+		$onRequestEvent = $this->getEventFromListenersProperty($app->onRequest);
+		Assert::true($onRequestEvent instanceof Event);
+		Assert::same(Application::class . '::onRequest', $onRequestEvent->getName());
 
-		Assert::true($app->onError instanceof Event);
-		Assert::same(Application::class . '::onError', $app->onError->getName());
+		$onResponseEvent = $this->getEventFromListenersProperty($app->onResponse);
+		Assert::true($onResponseEvent instanceof Event);
+		Assert::same(Application::class . '::onResponse', $onResponseEvent->getName());
 
-		Assert::true($app->onShutdown instanceof Event);
-		Assert::same(Application::class . '::onShutdown', $app->onShutdown->getName());
+		$onErrorEvent = $this->getEventFromListenersProperty($app->onError);
+		Assert::true($onErrorEvent instanceof Event);
+		Assert::same(Application::class . '::onError', $onErrorEvent->getName());
+
+		$onShutdownEvent = $this->getEventFromListenersProperty($app->onShutdown);
+		Assert::true($onShutdownEvent instanceof Event);
+		Assert::same(Application::class . '::onShutdown', $onShutdownEvent->getName());
 
 		// not all properties are affected
 		Assert::true(is_bool($app->catchExceptions));
 		Assert::true(!is_object($app->errorPresenter));
 
-		$user = $container->getService('user');
 		/** @var \Nette\Security\User $user */
-		Assert::true($user->onLoggedIn instanceof Event);
-		Assert::same(User::class . '::onLoggedIn', $user->onLoggedIn->getName());
+		$user = $container->getService('user');
 
-		Assert::true($user->onLoggedOut instanceof Event);
-		Assert::same(User::class . '::onLoggedOut', $user->onLoggedOut->getName());
+		$onLoggedInEvent = $this->getEventFromListenersProperty($user->onLoggedIn);
+		Assert::true($onLoggedInEvent instanceof Event);
+		Assert::same(User::class . '::onLoggedIn', $onLoggedInEvent->getName());
+
+		$onLoggedOutEvent = $this->getEventFromListenersProperty($user->onLoggedOut);
+		Assert::true($onLoggedOutEvent instanceof Event);
+		Assert::same(User::class . '::onLoggedOut', $onLoggedOutEvent->getName());
 	}
 
 	public function testInherited()
@@ -147,8 +156,9 @@ class ExtensionTest extends \Tester\TestCase
 		/** @var \KdybyTests\Events\LeafClass $leafObject */
 		$leafObject = $container->getService('leaf');
 
-		Assert::true($leafObject->onCreate instanceof Event);
-		Assert::same(LeafClass::class . '::onCreate', $leafObject->onCreate->getName());
+		$onCreateEvent = $this->getEventFromListenersProperty($leafObject->onCreate);
+		Assert::true($onCreateEvent instanceof Event);
+		Assert::same(LeafClass::class . '::onCreate', $onCreateEvent->getName());
 
 		$leafObject->create();
 
@@ -279,7 +289,8 @@ class ExtensionTest extends \Tester\TestCase
 		$container = $this->createContainer('factory.accessor');
 
 		$foo = $container->getService('foo');
-		Assert::type(Event::class, $foo->onBar);
+		$fooOnBarEvent = $this->getEventFromListenersProperty($foo->onBar);
+		Assert::type(Event::class, $fooOnBarEvent);
 
 		$fooAccessor = $container->getService('fooAccessor');
 		$foo2 = $fooAccessor->get();
@@ -287,7 +298,8 @@ class ExtensionTest extends \Tester\TestCase
 
 		$fooFactory = $container->getService('fooFactory');
 		$foo3 = $fooFactory->create();
-		Assert::type(Event::class, $foo3->onBar);
+		$foo3OnBarEvent = $this->getEventFromListenersProperty($foo3->onBar);
+		Assert::type(Event::class, $foo3OnBarEvent);
 		Assert::notSame($foo, $foo3);
 	}
 
@@ -297,9 +309,9 @@ class ExtensionTest extends \Tester\TestCase
 		$container->getService('events.manager');
 
 		$mock = $container->getService('dispatchOrderMock');
-		Assert::true($mock->onGlobalDispatchFirst->globalDispatchFirst);
-		Assert::false($mock->onGlobalDispatchLast->globalDispatchFirst);
-		Assert::true($mock->onGlobalDispatchDefault->globalDispatchFirst);
+		Assert::true($this->getEventFromListenersProperty($mock->onGlobalDispatchFirst)->globalDispatchFirst);
+		Assert::false($this->getEventFromListenersProperty($mock->onGlobalDispatchLast)->globalDispatchFirst);
+		Assert::true($this->getEventFromListenersProperty($mock->onGlobalDispatchDefault)->globalDispatchFirst);
 	}
 
 	public function testGlobalDispatchLast()
@@ -308,11 +320,22 @@ class ExtensionTest extends \Tester\TestCase
 		$container->getService('events.manager');
 
 		$mock = $container->getService('dispatchOrderMock');
-		Assert::true($mock->onGlobalDispatchFirst->globalDispatchFirst);
-		Assert::false($mock->onGlobalDispatchLast->globalDispatchFirst);
-		Assert::false($mock->onGlobalDispatchDefault->globalDispatchFirst);
+		Assert::true($this->getEventFromListenersProperty($mock->onGlobalDispatchFirst)->globalDispatchFirst);
+		Assert::false($this->getEventFromListenersProperty($mock->onGlobalDispatchLast)->globalDispatchFirst);
+		Assert::false($this->getEventFromListenersProperty($mock->onGlobalDispatchDefault)->globalDispatchFirst);
 	}
 
+	protected function getEventFromListenersProperty($listeners): ?Event {
+		if (is_array($listeners)) {
+			foreach ($listeners as $listener) {
+				if ($listener instanceof Event) {
+					return $listener;
+				}
+			}
+		}
+
+		return null;
+	}
 }
 
 (new ExtensionTest())->run();

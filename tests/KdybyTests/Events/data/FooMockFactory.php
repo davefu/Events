@@ -5,9 +5,6 @@ namespace KdybyTests\Events;
 interface FooMockFactory
 {
 
-	/**
-	 * @return \KdybyTests\Events\FooMock
-	 */
-	public function create();
+	public function create(): FooMock;
 
 }

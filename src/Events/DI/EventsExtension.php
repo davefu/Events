@@ -10,6 +10,7 @@
 
 namespace Kdyby\Events\DI;
 
+use Closure;
 use Doctrine\Common\EventSubscriber;
 use Kdyby\Events\Diagnostics\Panel;
 use Kdyby\Events\Event;
@@ -225,7 +226,18 @@ class EventsExtension extends \Nette\DI\CompilerExtension
 	private function validateSubscribers(DIContainerBuilder $builder, Definition $manager)
 	{
 		foreach ($manager->getSetup() as $stt) {
-			if ($stt->getEntity() !== 'addEventSubscriber') {
+			$hasValidEntity = false;
+			$entities = $stt->getEntity();
+			if (!is_array($entities)) {
+				$entities = [$entities];
+			}
+			foreach ($entities as $entity) {
+				if ($entity === 'addEventSubscriber') {
+					$hasValidEntity = true;
+					break;
+				}
+			}
+			if (!$hasValidEntity) {
 				$this->allowedManagerSetup[] = $stt;
 				continue;
 			}
@@ -407,7 +419,7 @@ class EventsExtension extends \Nette\DI\CompilerExtension
 			}
 
 			$dispatchAnnotation = self::propertyHasAnnotation($property, 'globalDispatchFirst');
-			$def->addSetup('$' . $name, [
+			$def->addSetup('$' . $name . '[]', [
 				new Statement($this->prefix('@manager') . '::createEvent', [
 					[$class->getName(), $name],
 					new Literal('$service->' . $name),

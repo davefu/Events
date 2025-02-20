@@ -5,6 +5,3 @@ parameters:
 		- tests/KdybyTests
 
 	ignoreErrors:
-		-
-			message: '~Method Kdyby\\Events\\SymfonyDispatcher::dispatch\(\) should return object but return statement is missing\.~'
-			path: src/Events/SymfonyDispatcher.php

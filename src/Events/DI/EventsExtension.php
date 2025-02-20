@@ -398,7 +398,7 @@ class EventsExtension extends \Nette\DI\CompilerExtension
 					continue;
 				}
 			}
-			if ($def instanceof AccessorDefinition || $def instanceof ImportedDefinition) {
+			if ($def instanceof AccessorDefinition) {
 				continue;
 			}
 

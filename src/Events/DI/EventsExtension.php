@@ -17,9 +17,8 @@ use Kdyby\Events\EventManager;
 use Kdyby\Events\LazyEventManager;
 use Kdyby\Events\Subscriber;
 use Kdyby\Events\SymfonyDispatcher;
-use Nette\Configurator;
+use Nette\Bootstrap\Configurator;
 use Nette\DI\Compiler;
-use Nette\DI\Config\Helpers;
 use Nette\DI\Container as DIContainer;
 use Nette\DI\ContainerBuilder as DIContainerBuilder;
 use Nette\DI\Definitions\AccessorDefinition;
@@ -31,8 +30,9 @@ use Nette\DI\Definitions\ServiceDefinition;
 use Nette\DI\Definitions\Statement;
 use Nette\DI\Helpers as DIHelpers;
 use Nette\PhpGenerator\ClassType as ClassTypeGenerator;
-use Nette\PhpGenerator\Helpers as GeneratorHelpers;
-use Nette\PhpGenerator\PhpLiteral;
+use Nette\PhpGenerator\Literal;
+use Nette\Schema\Expect;
+use Nette\Schema\Schema;
 use Nette\Utils\Validators;
 use ReflectionProperty;
 use Symfony\Component\EventDispatcher\Event as SymfonyEvent;
@@ -54,19 +54,6 @@ class EventsExtension extends \Nette\DI\CompilerExtension
 	/**
 	 * @var array
 	 */
-	public $defaults = [
-		'subscribers' => [],
-		'validate' => TRUE,
-		'autowire' => TRUE,
-		'optimize' => TRUE,
-		'debugger' => '%debugMode%',
-		'exceptionHandler' => NULL,
-		'globalDispatchFirst' => FALSE,
-	];
-
-	/**
-	 * @var array
-	 */
 	private $loadedConfig;
 
 	/**
@@ -79,37 +66,53 @@ class EventsExtension extends \Nette\DI\CompilerExtension
 	 */
 	private $allowedManagerSetup = [];
 
+	public function getConfigSchema(): Schema
+	{
+		return Expect::structure([
+			'subscribers' => Expect::array(),
+			'validate' => Expect::bool(TRUE),
+			'autowire' => Expect::bool(TRUE),
+			'optimize' => Expect::bool(TRUE),
+			'debugger' => Expect::anyOf(
+				Expect::bool(),
+				Expect::structure([
+					'dispatchTree' => Expect::bool(FALSE),
+					'dispatchLog' => Expect::bool(TRUE),
+					'events' => Expect::bool(TRUE),
+					'listeners' => Expect::bool(FALSE),
+				]),
+			)->default(NULL),
+			'exceptionHandler' => Expect::string(),
+			'globalDispatchFirst' => Expect::bool(FALSE),
+		]);
+	}
+
 	public function loadConfiguration()
 	{
 		$this->listeners = [];
 		$this->allowedManagerSetup = [];
 
 		$builder = $this->getContainerBuilder();
-		/** @var array $config */
-		$config = Helpers::merge($this->getConfig(), $this->defaults);
+		$config = (array)$this->getConfig();
 
-		/** @var array $userConfig */
-		$userConfig = $this->getConfig();
-		if (!array_key_exists('debugger', $userConfig)) {
-			if (in_array(php_sapi_name(), ['cli', 'phpdbg'], TRUE)) {
+		$debugMode = $builder->parameters['debugMode'];
+		if ($config['debugger'] === NULL) {
+			if (in_array(php_sapi_name(), ['cli', 'phpdbg'], FALSE)) {
 				$config['debugger'] = FALSE; // disable by default in CLI
 
-			} elseif (!$config['debugger']) {
-				$config['debugger'] = self::PANEL_COUNT_MODE;
+			} else {
+				$config['debugger'] = $debugMode ?: self::PANEL_COUNT_MODE;
 			}
 		}
 
 		$evm = $builder->addDefinition($this->prefix('manager'))
 			->setType(EventManager::class);
 		if ($config['debugger']) {
-			$defaults = ['dispatchTree' => FALSE, 'dispatchLog' => TRUE, 'events' => TRUE, 'listeners' => FALSE];
-			if (is_array($config['debugger'])) {
-				$config['debugger'] = Helpers::merge($config['debugger'], $defaults);
-			} else {
+			if (!is_array($config['debugger'])) {
 				$config['debugger'] = $config['debugger'] !== self::PANEL_COUNT_MODE;
 			}
 
-			$evm->addSetup('?::register(?, ?)->renderPanel = ?', [new PhpLiteral(Panel::class), '@self', '@container', $config['debugger']]);
+			$evm->addSetup('?::register(?, ?)->renderPanel = ?', [new Literal(Panel::class), '@self', '@container', $config['debugger']]);
 		}
 
 		if ($config['exceptionHandler'] !== NULL) {
@@ -148,7 +151,7 @@ class EventsExtension extends \Nette\DI\CompilerExtension
 		$builder = $this->getContainerBuilder();
 		$config = $this->loadedConfig;
 
-		/** @var \Nette\DI\Definitions\ServiceDefinition $manager */
+		/** @var ServiceDefinition $manager */
 		$manager = $builder->getDefinition($this->prefix('manager'));
 		foreach (array_keys($builder->findByTag(self::TAG_SUBSCRIBER)) as $serviceName) {
 			$manager->addSetup('addEventSubscriber', ['@' . $serviceName]);
@@ -215,8 +218,8 @@ class EventsExtension extends \Nette\DI\CompilerExtension
 	}
 
 	/**
-	 * @param \Nette\DI\ContainerBuilder $builder
-	 * @param \Nette\DI\ServiceDefinition $manager
+	 * @param DIContainerBuilder $builder
+	 * @param ServiceDefinition $manager
 	 * @throws \Nette\Utils\AssertionException
 	 */
 	private function validateSubscribers(DIContainerBuilder $builder, Definition $manager)
@@ -341,9 +344,6 @@ class EventsExtension extends \Nette\DI\CompilerExtension
 		return FALSE;
 	}
 
-	/**
-	 * @param \Nette\DI\ContainerBuilder $builder
-	 */
 	private function autowireEvents(DIContainerBuilder $builder)
 	{
 		foreach ($builder->getDefinitions() as $def) {
@@ -393,7 +393,7 @@ class EventsExtension extends \Nette\DI\CompilerExtension
 
 	protected function bindEventProperties(Definition $def, \ReflectionClass $class)
 	{
-		/** @var \Nette\DI\Definitions\ServiceDefinition $def */
+		/** @var ServiceDefinition $def */
 		$def = $def instanceof FactoryDefinition ? $def->getResultDefinition() : $def;
 
 		foreach ($class->getProperties(ReflectionProperty::IS_PUBLIC) as $property) {
@@ -410,7 +410,7 @@ class EventsExtension extends \Nette\DI\CompilerExtension
 			$def->addSetup('$' . $name, [
 				new Statement($this->prefix('@manager') . '::createEvent', [
 					[$class->getName(), $name],
-					new PhpLiteral('$service->' . $name),
+					new Literal('$service->' . $name),
 					NULL,
 					$dispatchAnnotation ?? $this->loadedConfig['globalDispatchFirst'],
 				]),
@@ -418,9 +418,6 @@ class EventsExtension extends \Nette\DI\CompilerExtension
 		}
 	}
 
-	/**
-	 * @param \Nette\DI\ContainerBuilder $builder
-	 */
 	private function optimizeListeners(DIContainerBuilder $builder)
 	{
 		$listeners = [];
@@ -451,7 +448,7 @@ class EventsExtension extends \Nette\DI\CompilerExtension
 			$listeners[$id] = array_unique($subscribers);
 		}
 
-		/** @var \Nette\DI\Definitions\ServiceDefinition $manager */
+		/** @var ServiceDefinition $manager */
 		$manager = $builder->getDefinition($this->prefix('manager'));
 		$manager->setFactory(LazyEventManager::class, [$listeners])
 			->setSetup($this->allowedManagerSetup);
@@ -459,16 +456,13 @@ class EventsExtension extends \Nette\DI\CompilerExtension
 
 	/**
 	 * @param string|\stdClass $statement
-	 * @return \Nette\DI\Statement[]
+	 * @return Statement[]
 	 */
 	private function filterArgs($statement)
 	{
 		return DIHelpers::filterArguments([is_string($statement) ? new Statement($statement) : $statement]);
 	}
 
-	/**
-	 * @param \Nette\Configurator $configurator
-	 */
 	public static function register(Configurator $configurator)
 	{
 		$configurator->onCompile[] = static function ($config, Compiler $compiler) {

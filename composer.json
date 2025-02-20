@@ -20,7 +20,7 @@
 		"php": "^7.4 | ^8.0",
 		"nette/di": "^3.0",
 		"nette/schema": "^1.0",
-		"nette/utils": "^3.0"
+		"nette/utils": "^3.0 || ^4.0"
 	},
 	"require-dev": {
 		"nette/application": "^3.0",
@@ -29,7 +29,7 @@
 		"nette/security": "^3.0",
 		"nette/http": "^3.0",
 		"tracy/tracy": "^2.5",
-		"symfony/event-dispatcher": "^3.0 || ^4.0",
+		"symfony/event-dispatcher": "^5.0 || ^6.0 || ^7.0",
 		"nette/tester": "^2.4",
 		"phpstan/phpstan": "^1.12.19",
 		"jakub-onderka/php-parallel-lint": "^1.0"

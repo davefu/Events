@@ -105,7 +105,7 @@ class Event implements \ArrayAccess, \IteratorAggregate, \Countable
 	/**
 	 * Invokes the event.
 	 *
-	 * @param array $args
+	 * @param mixed $args
 	 */
 	public function dispatch($args = [])
 	{

@@ -281,7 +281,9 @@ class EventManager extends \Doctrine\Common\EventManager
 		$this->subscribers[$hash] = $subscriber;
 
 		foreach ($subscriber->getSubscribedEvents() as $eventName => $params) {
-			if (is_numeric($eventName) && is_string($params)) { // [EventName, ...]
+			if ($params instanceof Closure) {
+				$this->addEventListener($eventName, $params);
+			} elseif (is_numeric($eventName) && is_string($params)) { // [EventName, ...]
 				$this->addEventListener($params, $subscriber);
 
 			} elseif (is_string($eventName)) { // [EventName => ???, ...]

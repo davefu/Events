@@ -310,7 +310,10 @@ class EventsExtension extends \Nette\DI\CompilerExtension
 			$eventNames = [];
 			$listenerInst = self::createEventSubscriberInstanceWithoutConstructor($defClass);
 			foreach ($listenerInst->getSubscribedEvents() as $eventName => $params) {
-				if (is_numeric($eventName) && is_string($params)) { // [EventName, ...]
+				$isClosure = $params instanceof Closure;
+				if (is_numeric($eventName) && $isClosure) {
+					throw new \Nette\Utils\AssertionException(sprintf('Closure event listener in %s class cannot be used without event name as a key.', $defClass));
+				} elseif (is_numeric($eventName) && is_string($params)) { // [EventName, ...]
 					[, $method] = Event::parseName($params);
 					$eventNames[] = ltrim($params, '\\');
 					if (!method_exists($listenerInst, $method)) {
@@ -325,12 +328,12 @@ class EventsExtension extends \Nette\DI\CompilerExtension
 							throw new \Nette\Utils\AssertionException(sprintf('Event listener %s::%s() is not implemented.', $defClass, $params));
 						}
 
-					} elseif (is_string($params[0])) { // [EventName => [method, priority], ...]
+					} elseif (!$isClosure && is_string($params[0])) { // [EventName => [method, priority], ...]
 						if (!method_exists($listenerInst, $params[0])) {
 							throw new \Nette\Utils\AssertionException(sprintf('Event listener %s::%s() is not implemented.', $defClass, $params[0]));
 						}
 
-					} else {
+					} elseif (!$isClosure) {
 						foreach ($params as $listener) { // [EventName => [[method, priority], ...], ...]
 							if (!method_exists($listenerInst, $listener[0])) {
 								throw new \Nette\Utils\AssertionException(sprintf('Event listener %s::%s() is not implemented.', $defClass, $listener[0]));
